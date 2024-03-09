@@ -64,15 +64,20 @@ class Yolov8SegNode:
     CATEGORY = "yolov8"
 
     def seg(self, image, model_name, class_id):
+        # Convert tensor to numpy array *and move to CPU* if on GPU
+        if image.is_cuda:  # Check if tensor is on GPU
+            image_tensor = image.cpu()  # Move to CPU before conversion
+            print("Image tensor moved to CPU")
+        else:
+            image_tensor = image  # No need to move if already on CPU
+
         # Convert tensor to numpy array and then to PIL Image
-        image_tensor = image
-        image_np = image_tensor.cpu().numpy()  # Change from CxHxW to HxWxC for Pillow
-        image = Image.fromarray((image_np.squeeze(0) * 255).astype(np.uint8))  # Convert float [0,1] tensor to uint8 image
-        
+        image_np = image_tensor.numpy()  # Safe to convert to numpy now
+        image = Image.fromarray((image_np.squeeze(0) * 255).astype(np.uint8))
+
         print(f'model_path: {os.path.join(folder_paths.models_dir, "yolov8")}/{model_name}')
         model = YOLO(f'{os.path.join(folder_paths.models_dir, "yolov8")}/{model_name}')  # load a custom model
         results = model(image)
-
 
         # get array results
         masks = results[0].masks.data
@@ -92,7 +97,12 @@ class Yolov8SegNode:
         image_tensor_out = torch.tensor(np.array(im).astype(np.float32) / 255.0)  # Convert back to CxHxW
         image_tensor_out = torch.unsqueeze(image_tensor_out, 0)
 
-        return (image_tensor_out, people_mask)
+        # Check if mask is on GPU and move to CPU
+        if people_mask.is_cuda:  # Check if mask is on GPU
+            people_mask = people_mask.cpu()  # Move to CPU before returning
+            print("People mask moved to CPU")
+
+        return (image_tensor_out, people_mask)  # Both tensors now on CPU
 
 NODE_CLASS_MAPPINGS = {
     "Yolov8Detection": Yolov8DetectionNode,
